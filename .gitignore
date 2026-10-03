@@ -2,3 +2,4 @@
 .build/
 .swiftpm/
 app/build/
+*.log

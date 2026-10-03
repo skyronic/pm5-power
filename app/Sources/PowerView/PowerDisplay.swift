@@ -10,6 +10,8 @@ struct PowerDisplay: View {
     @AppStorage("scale") var scale = 1.0
     @AppStorage("opacity") var opacity = 0.7
     @AppStorage("mainIsAverage") var mainIsAverage = false
+    @AppStorage("windowOpacity") var windowOpacity = 1.0  // whole window, for sitting over video
+    @AppStorage(Model.refreshKey) var refresh = 0.0
     @State private var hovering = false
 
     static let size = CGSize(width: 220, height: 140)
@@ -31,7 +33,8 @@ struct PowerDisplay: View {
                 rideStats
             }
             HStack(spacing: 4 * scale) {
-                Text(live ? detail(other) : model.status)
+                statusDot
+                Text(statusLine(other))
                     .font(.system(size: 11 * scale, weight: .medium, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -39,7 +42,7 @@ struct PowerDisplay: View {
                 Spacer(minLength: 0)
                 newRideButton
             }
-            PowerChart(ride: model.ride, scale: scale)
+            PowerChart(ride: model.ride, average: average, scale: scale)
                 .opacity(rolling ? 1 : 0.45)
         }
         .monospacedDigit()
@@ -49,33 +52,69 @@ struct PowerDisplay: View {
         .padding(.bottom, 10 * scale)
         .frame(width: Self.size.width * scale, height: Self.size.height * scale)
         .background(RoundedRectangle(cornerRadius: 14 * scale).fill(.black.opacity(opacity)))
+        .opacity(hovering ? 1 : windowOpacity)  // full strength under the mouse, to find and use it
+        .animation(.easeOut(duration: 0.2), value: hovering)
         .onHover { hovering = $0 }
-        .contextMenu { menu }
         .onTapGesture { source.resume() }
     }
 
+    // The PM5's clock, average and rowing state are shown as is when it sends them;
+    // the app's own `Ride` figures are only a fallback (demo, non-Concept2 devices).
+
+    var started: Bool { model.pm5.map { $0.elapsed > 0 } ?? model.ride.started }
+    var elapsed: TimeInterval { model.pm5?.elapsed ?? model.ride.movingTime }
+    var average: Double? {
+        guard let pm5 = model.pm5 else { return model.ride.averageWatts }
+        return pm5.elapsed > 0 ? pm5.averageWatts.map(Double.init) : nil
+    }
+    var stopped: Bool { model.pm5?.active.map(!) ?? model.ride.isPaused }
+
     /// Ride clock is running: pedalling, and data is arriving.
-    var rolling: Bool { model.live && model.ride.started && !model.ride.isPaused }
+    var rolling: Bool { model.live && started && !stopped }
 
     var rideStats: some View {
-        let ride = model.ride
-        let paused = ride.started && !rolling
+        let paused = started && !rolling
         return VStack(alignment: .trailing, spacing: 1 * scale) {
             HStack(spacing: 3 * scale) {
                 if paused {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 11 * scale, weight: .bold))
                 }
-                Text(clock(ride.movingTime))
+                Text(clock(elapsed))
                     .font(.system(size: 20 * scale, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(paused ? pausedColor : .white)
-            .opacity(ride.started ? 1 : 0.4)
-            Text("avg \(ride.averageWatts.map { "\(Int($0.rounded()))" } ?? "--") W")
+            .opacity(started ? 1 : 0.4)
+            Text("avg \(average.map { "\(Int($0.rounded()))" } ?? "--") W")
                 .font(.system(size: 12 * scale, weight: .medium, design: .rounded))
                 .opacity(0.6)
         }
     }
+
+    /// Green: data arriving. Amber: connected but silent. Pulsing blue: looking for the bike.
+    /// Grey: disconnected on purpose. Red: Bluetooth itself is off or not allowed.
+    var statusDot: some View {
+        let color: Color = switch model.link {
+        case .connected: model.live ? .green : pausedColor
+        case .scanning, .connecting: .blue
+        case .paused, .starting: .white.opacity(0.4)
+        case .bluetoothOff, .unauthorized, .unavailable: .red
+        }
+        return Image(systemName: "circle.fill")
+            .font(.system(size: 6 * scale))
+            .foregroundStyle(color)
+            // Animates only while searching, which times out, so nothing redraws while idle.
+            .symbolEffect(.pulse, isActive: model.link.isSearching)
+    }
+
+    func statusLine(_ other: Double?) -> String {
+        if let left = model.idleDisconnectIn { return "Idle · disconnecting in \(clock(TimeInterval(left)))" }
+        if model.live { return detail(other) }
+        if case .connected(let name, _) = model.link { return "\(name) · waiting for data" }
+        return model.link.message
+    }
+
+    var canReset: Bool { model.pm5 == nil && model.ride.started }
 
     var newRideButton: some View {
         Button { model.newRide() } label: {
@@ -86,8 +125,9 @@ struct PowerDisplay: View {
         }
         .buttonStyle(.plain)
         .help("New ride")
-        .opacity(model.ride.started ? (hovering ? 0.9 : 0.3) : 0)
-        .disabled(!model.ride.started)
+        // Only without PM5 data: otherwise a new workout on the monitor resets the app.
+        .opacity(canReset ? (hovering ? 0.9 : 0.3) : 0)
+        .disabled(!canReset)
     }
 
     func detail(_ other: Double?) -> String {
@@ -103,36 +143,12 @@ struct PowerDisplay: View {
             ? String(format: "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
             : String(format: "%d:%02d", s / 60, s % 60)
     }
-
-    @ViewBuilder var menu: some View {
-        Button("New Ride") { model.newRide() }
-            .disabled(!model.ride.started)
-        Divider()
-        if model.paused {
-            Button("Reconnect") { source.resume() }
-        } else {
-            Button("Disconnect") { source.pause("Off") }
-        }
-        Divider()
-        Toggle("Show 3s Average as Main Number", isOn: $mainIsAverage)
-        Picker("Size", selection: $scale) {
-            Text("Small").tag(0.75)
-            Text("Medium").tag(1.0)
-            Text("Large").tag(1.5)
-        }
-        Picker("Background", selection: $opacity) {
-            Text("Light").tag(0.4)
-            Text("Medium").tag(0.7)
-            Text("Solid").tag(0.95)
-        }
-        Divider()
-        Button("Quit") { NSApp.terminate(nil) }
-    }
 }
 
 /// The last two minutes of moving time, with the ride average as a dashed line.
 struct PowerChart: View {
     let ride: Ride
+    let average: Double?  // the PM5's when available, so the line matches the number shown
     let scale: Double
     static let window: TimeInterval = 120
 
@@ -142,7 +158,7 @@ struct PowerChart: View {
         // Keep one point before the window so the line enters from the left edge.
         let from = ride.trace.lastIndex { $0.time < start } ?? 0
         let points = Array(ride.trace[from...])
-        let avg = ride.averageWatts
+        let avg = average
         let top = max(Double(points.map(\.watts).max() ?? 0), avg ?? 0, 100) * 1.15
 
         Chart {

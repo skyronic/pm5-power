@@ -13,16 +13,15 @@ final class Demo: PowerSource {
     }
 
     func resume() {
-        model.paused = false
-        model.status = "Demo"
+        model.link = .connected(name: "Demo", source: "Simulated")
+        timer?.invalidate()  // tapping the window calls resume() even while running
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.step() }
     }
 
     func pause(_ reason: String) {
         timer?.invalidate()
-        model.paused = true
+        model.link = .paused(reason: reason)
         model.live = false
-        model.status = "\(reason) · click to connect"
     }
 
     private func step() {

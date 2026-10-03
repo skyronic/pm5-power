@@ -50,3 +50,26 @@ import Testing
     #expect(Decode.c2AdditionalStrokeData([0, 0, 0, 1]) == nil)
     #expect(Decode.c2AdditionalStatus1([0, 0, 0, 0, 0]) == nil)
 }
+
+// Payloads below are from a real BikeErg PM5, captured as the rider stopped pedalling.
+
+@Test func c2GeneralStatusWhileRiding() {
+    let d: [UInt8] = [0x51, 0xb5, 0x00, 0xd9, 0x71, 0x00, 0x01, 0x01, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xa0]
+    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.17, active: true))
+}
+
+@Test func c2GeneralStatusOnStopping() {
+    // The clock freezes and the rowing state drops to 0 in the same packet.
+    let d: [UInt8] = [0x5e, 0xb5, 0x00, 0xde, 0x71, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xa0]
+    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.30, active: false))
+}
+
+@Test func c2AdditionalStatus2Average() {
+    let d: [UInt8] = [0x51, 0xb5, 0x00, 0x01, 0x57, 0x00, 0x4d, 0x00, 0x83, 0x3c, 0x5e, 0x00, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x41, 0x07, 0x00]
+    #expect(Decode.c2AdditionalStatus2(d) == WorkoutStatus(elapsed: 464.17, averageWatts: 87))
+}
+
+@Test func c2StatusRejectsShortPayloads() {
+    #expect(Decode.c2GeneralStatus([0x51, 0xb5, 0x00]) == nil)
+    #expect(Decode.c2AdditionalStatus2([0x51, 0xb5, 0x00, 0x01, 0x57]) == nil)
+}

@@ -10,7 +10,9 @@ public enum GATT {
 
     public static func c2(_ short: String) -> String { "CE06\(short)-43E5-11E4-916C-0800200C9A66" }
     public static let c2RowingService = c2("0030")
+    public static let c2GeneralStatus = c2("0031")  // bytes 0-2: elapsed time; byte 9: rowing state
     public static let c2AdditionalStatus1 = c2("0032")  // byte 5: stroke rate (= cadence on BikeErg)
+    public static let c2AdditionalStatus2 = c2("0033")  // bytes 0-2: elapsed time; bytes 4-5: average power (W)
     public static let c2AdditionalStrokeData = c2("0036")  // bytes 3-4: stroke power (W)
 }
 
@@ -25,6 +27,20 @@ public struct Reading: Equatable, Sendable {
     }
 }
 
+/// The PM5's own workout clock and totals, which the window shows as is.
+/// Each Concept2 status characteristic carries part of it; absent fields are nil.
+public struct WorkoutStatus: Equatable, Sendable {
+    public var elapsed: Double  // seconds; freezes while the rider is stopped
+    public var averageWatts: Int?
+    public var active: Bool?  // rowing state: false while stopped
+
+    public init(elapsed: Double, averageWatts: Int? = nil, active: Bool? = nil) {
+        self.elapsed = elapsed
+        self.averageWatts = averageWatts
+        self.active = active
+    }
+}
+
 /// Previous crank sample; Cycling Power only reports cumulative revolutions, so cadence needs a delta.
 public struct CrankState: Equatable, Sendable {
     public var revs: Int
@@ -32,6 +48,7 @@ public struct CrankState: Equatable, Sendable {
 }
 
 func u16(_ d: [UInt8], _ i: Int) -> Int { Int(d[i]) | Int(d[i + 1]) << 8 }
+func u24(_ d: [UInt8], _ i: Int) -> Int { u16(d, i) | Int(d[i + 2]) << 16 }
 func s16(_ d: [UInt8], _ i: Int) -> Int { Int(Int16(bitPattern: UInt16(u16(d, i)))) }
 
 public enum Decode {
@@ -74,6 +91,16 @@ public enum Decode {
     /// Concept2 Additional Stroke Data (CE060036): power for the last stroke / pedal revolution.
     public static func c2AdditionalStrokeData(_ d: [UInt8]) -> Reading? {
         d.count >= 5 ? Reading(watts: u16(d, 3)) : nil
+    }
+
+    /// Concept2 General Status (CE060031): elapsed time (0.01 s) and rowing state (0 = stopped).
+    public static func c2GeneralStatus(_ d: [UInt8]) -> WorkoutStatus? {
+        d.count >= 10 ? WorkoutStatus(elapsed: Double(u24(d, 0)) / 100, active: d[9] != 0) : nil
+    }
+
+    /// Concept2 Additional Status 2 (CE060033): elapsed time (0.01 s) and workout average power.
+    public static func c2AdditionalStatus2(_ d: [UInt8]) -> WorkoutStatus? {
+        d.count >= 6 ? WorkoutStatus(elapsed: Double(u24(d, 0)) / 100, averageWatts: u16(d, 4)) : nil
     }
 
     /// Concept2 Additional Status 1 (CE060032): stroke rate, which is cadence on the BikeErg.

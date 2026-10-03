@@ -7,11 +7,14 @@ let package = Package(
     targets: [
         // Pure decoding of PM5 / standard GATT payloads. No CoreBluetooth, so it's unit-testable.
         .target(name: "PowerProtocol"),
+        // Ride timer, auto-pause and average. Pure logic, also unit-tested.
+        .target(name: "RideCore"),
         .executableTarget(
             name: "PowerView",
-            dependencies: ["PowerProtocol"],
+            dependencies: ["PowerProtocol", "RideCore"],
             swiftSettings: [.swiftLanguageMode(.v5)]  // CoreBluetooth delegates + AppKit; strict concurrency is noise here
         ),
         .testTarget(name: "PowerProtocolTests", dependencies: ["PowerProtocol"]),
+        .testTarget(name: "RideCoreTests", dependencies: ["RideCore"]),
     ]
 )

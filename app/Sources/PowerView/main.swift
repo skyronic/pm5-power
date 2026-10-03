@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let host = NSHostingController(rootView: PowerDisplay(model: model, source: source))
         host.sizingOptions = .preferredContentSize  // window follows the Size setting
 
-        panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 150, height: 88),
+        panel = NSPanel(contentRect: NSRect(origin: .zero, size: PowerDisplay.size),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.contentViewController = host
         panel.level = .statusBar
@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.backgroundColor = .clear
         panel.hasShadow = true
         if !panel.setFrameUsingName("PowerWindow"), let screen = NSScreen.main?.visibleFrame {
-            panel.setFrameTopLeftPoint(NSPoint(x: screen.maxX - 170, y: screen.maxY - 20))
+            panel.setFrameTopLeftPoint(NSPoint(x: screen.maxX - PowerDisplay.size.width - 20, y: screen.maxY - 20))
         }
         panel.setFrameAutosaveName("PowerWindow")
         panel.orderFrontRegardless()

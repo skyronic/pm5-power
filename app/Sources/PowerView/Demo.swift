@@ -27,6 +27,11 @@ final class Demo: PowerSource {
 
     private func step() {
         t += 0.5
+        // Stop pedalling for 10 s every 90 s so auto-pause can be seen.
+        if t.truncatingRemainder(dividingBy: 90) >= 80 {
+            model.update(Reading(watts: 0, cadence: 0))
+            return
+        }
         let watts = 180 + 60 * sin(t / 20) + Double.random(in: -15...15)
         model.update(Reading(watts: Int(watts), cadence: 85 + Double.random(in: -3...3)))
     }

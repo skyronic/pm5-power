@@ -7,13 +7,14 @@ Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 mon
 - `app/` — Swift package for the Mac app (PowerView). No Xcode project.
   - `Sources/PowerProtocol/` — GATT UUIDs and pure payload decoders. No CoreBluetooth; keep it that way so it stays unit-testable.
   - `Sources/PowerView/` — the app: `Bike.swift` (CoreBluetooth), `Model.swift` (live state + `PowerSource` protocol), `Demo.swift` (simulated rider), `PowerDisplay.swift` (SwiftUI), `main.swift` (floating panel setup).
-  - `Tests/PowerProtocolTests/` — Swift Testing tests for the decoders.
+  - `Sources/RideCore/` — `Ride`: moving time, time-weighted average, power trace, auto-pause (4 s without power). Pure logic, no UI.
+  - `Tests/PowerProtocolTests/`, `Tests/RideCoreTests/` — Swift Testing tests.
   - `Info.plist`, `build.sh` — the app bundle is assembled by hand from the SwiftPM binary.
 - `site/` — planned website (doesn't exist yet).
 
 ## Commands (run in `app/`)
 
-- `swift test` — decoder tests.
+- `swift test` — decoder and ride tests.
 - `./build.sh` — universal release build → `build/PowerView.app` (ad-hoc signed).
 - `open build/PowerView.app --args --demo` — run with simulated data; no bike needed.
 - `pkill -f PowerView.app/Contents/MacOS` — quit (there's no Dock icon).

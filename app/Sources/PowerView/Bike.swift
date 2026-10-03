@@ -18,10 +18,11 @@ private let log = Logger(subsystem: "pm5-power", category: "bike")
 /// Finds a PM5 over Bluetooth LE, subscribes to the best power source it offers, and feeds the model.
 ///
 /// Battery: an open connection keeps the PM5 awake indefinitely and keeps the Mac's radio busy,
-/// so we disconnect after `idleTimeout` without pedalling, stop scanning after `scanTimeout`,
+/// so we disconnect after `idleTimeout` without pedalling (`endedTimeout` once the workout is over), stop scanning after `scanTimeout`,
 /// and give up on a connection attempt after `connectTimeout` (CoreBluetooth never times out on its own).
 final class Bike: NSObject, PowerSource, CBCentralManagerDelegate, CBPeripheralDelegate {
     static let idleTimeout: TimeInterval = 5 * 60
+    static let endedTimeout: TimeInterval = 2 * 60  // once the PM5 is out of a workout, so it can go to sleep
     static let scanTimeout: TimeInterval = 2 * 60
     static let connectTimeout: TimeInterval = 15
     static let idleWarning: TimeInterval = 60
@@ -97,8 +98,9 @@ final class Bike: NSObject, PowerSource, CBCentralManagerDelegate, CBPeripheralD
             pause("Couldn't connect")
         }
         if let p = peripheral, p.state == .connected,
-           let since = [model.lastPedal, connectedAt].compactMap({ $0 }).max() {
-            let left = Self.idleTimeout - now.timeIntervalSince(since)
+           let since = [model.lastPedal, connectedAt, model.workoutEnded].compactMap({ $0 }).max() {
+            let timeout = model.pm5.inWorkout == false ? Self.endedTimeout : Self.idleTimeout
+            let left = timeout - now.timeIntervalSince(since)
             if left <= 0 {
                 pause("Idle")
             } else {

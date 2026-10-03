@@ -25,7 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.isMovableByWindowBackground = true
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // No window shadow: AppKit draws it from the content's outline and doesn't redraw it when
+        // the numbers change, which left ghost digits behind the text at lower opacity.
+        panel.hasShadow = false
         if !panel.setFrameUsingName("PowerWindow"), let screen = NSScreen.main?.visibleFrame {
             panel.setFrameTopLeftPoint(NSPoint(x: screen.maxX - PowerDisplay.size.width - 20, y: screen.maxY - 20))
         }

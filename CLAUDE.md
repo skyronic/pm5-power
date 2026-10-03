@@ -6,8 +6,8 @@ Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 mon
 
 - `app/` — Swift package for the Mac app (PowerView). No Xcode project.
   - `Sources/PowerProtocol/` — GATT UUIDs and pure payload decoders. No CoreBluetooth; keep it that way so it stays unit-testable.
-  - `Sources/PowerView/` — the app: `Bike.swift` (CoreBluetooth), `Model.swift` (live state + `PowerSource` protocol), `Demo.swift` (simulated rider), `PowerDisplay.swift` (SwiftUI), `main.swift` (floating panel setup).
-  - `Sources/RideCore/` — `Ride`: moving time, time-weighted average, power trace, auto-pause (4 s without power). Pure logic, no UI.
+  - `Sources/PowerView/` — the app: `Bike.swift` (CoreBluetooth), `Model.swift` (live state + `PowerSource` protocol), `Demo.swift` (simulated PM5), `PowerDisplay.swift` (SwiftUI), `Menu.swift` (right-click menu, AppKit), `main.swift` (floating panel setup).
+  - `Sources/RideCore/` — `Trace`: the chart's power trace, keyed by the PM5's workout clock. Pure logic, no UI.
   - `Tests/PowerProtocolTests/`, `Tests/RideCoreTests/` — Swift Testing tests.
   - `Info.plist`, `build.sh` — the app bundle is assembled by hand from the SwiftPM binary.
 - `site/` — planned website (doesn't exist yet).
@@ -30,11 +30,14 @@ On connect, `Bike` subscribes to the first source the PM5 exposes:
 2. FTMS Indoor Bike Data `0x2AD2` (service `0x1826`). Field layout depends on the flags; bit 0 *clear* means speed *is* present.
 3. Concept2 rowing service `CE060030-43E5-11E4-916C-0800200C9A66`: power = bytes 3–4 of `CE060036` (Additional Stroke Data); cadence = byte 5 of `CE060032` (Additional Status 1, "stroke rate").
 
+Whichever source supplies power, it also subscribes to Concept2 General Status `CE060031` (bytes 0–2 elapsed in 0.01 s; byte 8 workout state, 1–9 = in a workout; byte 9 rowing state, 0 = stopped) and Additional Status 2 `CE060033` (bytes 4–5 workout average watts). Right after connecting, `CE060033` sends a few packets with the average zeroed; they're ignored.
+
 The PM5 only advertises while its screen is awake. macOS Bluetooth settings can't pair it; apps connect directly.
 
 ## Things that matter
 
-- **Battery.** An open BLE connection keeps the PM5 awake indefinitely and keeps the Mac's radio busy (this drained a laptop overnight once). `Bike` disconnects after 5 min without non-zero power and stops scanning after 2 min. Any new feature must not hold a connection, scan, or redraw on a timer while idle.
+- **Mirror the PM5.** The clock, average, stopped state and workout start/end are whatever the PM5 last sent (`PM5State` in PowerProtocol, merged from `CE060031`/`CE060033`); the app calculates none of them. Restarting the app or reconnecting mid-workout shows the same values. The only app-side figures are the 3 s average and the chart trace. `--demo` sends the same packets as a PM5, so it exercises the real display path.
+- **Battery.** An open BLE connection keeps the PM5 awake indefinitely and keeps the Mac's radio busy (this drained a laptop overnight once). `Bike` disconnects after 5 min stopped, 2 min after the PM5 leaves a workout (so it can sleep), and stops scanning after 2 min. "Stopped" is the PM5's rowing state, not raw watts: Cycling Power sends a stray non-zero reading when a workout is ended. Any new feature must not hold a connection, scan, or redraw on a timer while idle.
 - **Floating over full-screen video** depends on all of: `LSUIElement` in Info.plist (accessory app), a non-activating `NSPanel`, `collectionBehavior` with `.canJoinAllSpaces` + `.fullScreenAuxiliary`, and `hidesOnDeactivate = false`. Changing any of these can break it.
 - **Testing without hardware.** Only the maintainer has a bike. Verify UI with `--demo` and decoders with `swift test`; anything touching `Bike.swift` needs a real-ride check by the maintainer, so say so instead of claiming it works.
 - Untested so far: ANT+ (removed for now; see git history for the old Python CLI), RowErg/SkiErg, the FTMS and Cycling Power paths against a real PM5.

@@ -10,7 +10,7 @@ public enum GATT {
 
     public static func c2(_ short: String) -> String { "CE06\(short)-43E5-11E4-916C-0800200C9A66" }
     public static let c2RowingService = c2("0030")
-    public static let c2GeneralStatus = c2("0031")  // bytes 0-2: elapsed time; byte 9: rowing state
+    public static let c2GeneralStatus = c2("0031")  // bytes 0-2: elapsed time; byte 8: workout state; byte 9: rowing state
     public static let c2AdditionalStatus1 = c2("0032")  // byte 5: stroke rate (= cadence on BikeErg)
     public static let c2AdditionalStatus2 = c2("0033")  // bytes 0-2: elapsed time; bytes 4-5: average power (W)
     public static let c2AdditionalStrokeData = c2("0036")  // bytes 3-4: stroke power (W)
@@ -33,11 +33,45 @@ public struct WorkoutStatus: Equatable, Sendable {
     public var elapsed: Double  // seconds; freezes while the rider is stopped
     public var averageWatts: Int?
     public var active: Bool?  // rowing state: false while stopped
+    public var inWorkout: Bool?  // false on the main menu and once a workout has ended
 
-    public init(elapsed: Double, averageWatts: Int? = nil, active: Bool? = nil) {
+    public init(elapsed: Double, averageWatts: Int? = nil, active: Bool? = nil, inWorkout: Bool? = nil) {
         self.elapsed = elapsed
         self.averageWatts = averageWatts
         self.active = active
+        self.inWorkout = inWorkout
+    }
+}
+
+/// Everything the window shows, as the PM5 last reported it. Each packet fills in part of it;
+/// nothing here is calculated, so reconnecting or restarting the app mid-workout shows the same values.
+public struct PM5State: Equatable, Sendable {
+    public var watts: Int?
+    public var cadence: Double?
+    public var elapsed: Double?  // seconds; freezes while the rider is stopped
+    public var averageWatts: Int?
+    public var active: Bool?  // false while stopped
+    public var inWorkout: Bool?
+
+    public init() {}
+
+    public mutating func apply(_ r: Reading) {
+        if let w = r.watts { watts = w }
+        if let c = r.cadence { cadence = c }
+    }
+
+    /// Returns true if the PM5 started a new workout: its clock went backwards.
+    @discardableResult
+    public mutating func apply(_ s: WorkoutStatus) -> Bool {
+        let restarted = elapsed.map { s.elapsed < $0 - 2 } ?? false
+        if restarted { averageWatts = nil }
+        elapsed = s.elapsed
+        // Right after connecting, the PM5 sends a few packets with the average zeroed. A workout
+        // average can't fall back to 0 once it's positive, so keep the last one.
+        if let a = s.averageWatts, a > 0 || (averageWatts ?? 0) == 0 { averageWatts = a }
+        if let a = s.active { active = a }
+        if let w = s.inWorkout { inWorkout = w }
+        return restarted
     }
 }
 
@@ -93,9 +127,11 @@ public enum Decode {
         d.count >= 5 ? Reading(watts: u16(d, 3)) : nil
     }
 
-    /// Concept2 General Status (CE060031): elapsed time (0.01 s) and rowing state (0 = stopped).
+    /// Concept2 General Status (CE060031): elapsed time (0.01 s), workout state and rowing state (0 = stopped).
+    /// Workout states 1–9 are parts of a workout; 0 is waiting on the menu, 10–13 are ending it.
     public static func c2GeneralStatus(_ d: [UInt8]) -> WorkoutStatus? {
-        d.count >= 10 ? WorkoutStatus(elapsed: Double(u24(d, 0)) / 100, active: d[9] != 0) : nil
+        guard d.count >= 10 else { return nil }
+        return WorkoutStatus(elapsed: Double(u24(d, 0)) / 100, active: d[9] != 0, inWorkout: (1...9).contains(d[8]))
     }
 
     /// Concept2 Additional Status 2 (CE060033): elapsed time (0.01 s) and workout average power.

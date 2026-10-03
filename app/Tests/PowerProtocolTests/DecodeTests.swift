@@ -55,13 +55,19 @@ import Testing
 
 @Test func c2GeneralStatusWhileRiding() {
     let d: [UInt8] = [0x51, 0xb5, 0x00, 0xd9, 0x71, 0x00, 0x01, 0x01, 0x01, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xa0]
-    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.17, active: true))
+    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.17, active: true, inWorkout: true))
 }
 
 @Test func c2GeneralStatusOnStopping() {
     // The clock freezes and the rowing state drops to 0 in the same packet.
     let d: [UInt8] = [0x5e, 0xb5, 0x00, 0xde, 0x71, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xa0]
-    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.30, active: false))
+    #expect(Decode.c2GeneralStatus(d) == WorkoutStatus(elapsed: 464.30, active: false, inWorkout: true))
+}
+
+@Test func c2GeneralStatusAfterEndingTheWorkout() {
+    // Ended from the PM5 menu: workout state goes 1 → 11 (terminate) → 13 → 0 (waiting to begin).
+    let d: [UInt8] = [0x16, 0x00, 0x02, 0x4f, 0x37, 0x01, 0x01, 0x01, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x9f]
+    #expect(Decode.c2GeneralStatus(d)?.inWorkout == false)
 }
 
 @Test func c2AdditionalStatus2Average() {
@@ -72,4 +78,32 @@ import Testing
 @Test func c2StatusRejectsShortPayloads() {
     #expect(Decode.c2GeneralStatus([0x51, 0xb5, 0x00]) == nil)
     #expect(Decode.c2AdditionalStatus2([0x51, 0xb5, 0x00, 0x01, 0x57]) == nil)
+}
+
+@Test func pm5StateMergesPackets() {
+    var s = PM5State()
+    s.apply(WorkoutStatus(elapsed: 464.17, active: true, inWorkout: true))
+    s.apply(WorkoutStatus(elapsed: 464.17, averageWatts: 87))
+    s.apply(Reading(watts: 90))
+    s.apply(Reading(cadence: 47))
+    #expect(s.elapsed == 464.17 && s.averageWatts == 87 && s.active == true)
+    #expect(s.watts == 90 && s.cadence == 47)
+    s.apply(WorkoutStatus(elapsed: 464.30, active: false))
+    #expect(s.active == false && s.averageWatts == 87)
+}
+
+@Test func pm5StateIgnoresZeroedAverageAfterConnect() {
+    var s = PM5State()
+    s.apply(WorkoutStatus(elapsed: 900, averageWatts: 83))
+    s.apply(WorkoutStatus(elapsed: 901, averageWatts: 0))
+    #expect(s.averageWatts == 83)
+}
+
+@Test func pm5StateSpotsANewWorkout() {
+    var s = PM5State()
+    let first = s.apply(WorkoutStatus(elapsed: 900, averageWatts: 83))
+    let jitter = s.apply(WorkoutStatus(elapsed: 899))  // small jitter isn't a restart
+    let restart = s.apply(WorkoutStatus(elapsed: 1, averageWatts: 0))
+    #expect(!first && !jitter && restart)
+    #expect(s.averageWatts == 0 && s.elapsed == 1)
 }

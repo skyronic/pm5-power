@@ -18,8 +18,8 @@ struct PowerDisplay: View {
 
     var body: some View {
         let live = model.live
-        let main = mainIsAverage ? model.avg3.map { Int($0.rounded()) } : model.watts
-        let other = mainIsAverage ? model.watts.map(Double.init) : model.avg3
+        let main = mainIsAverage ? model.avg3.map { Int($0.rounded()) } : model.pm5.watts
+        let other = mainIsAverage ? model.pm5.watts.map(Double.init) : model.avg3
         VStack(alignment: .leading, spacing: 2 * scale) {
             HStack(alignment: .center, spacing: 0) {
                 HStack(alignment: .firstTextBaseline, spacing: 3 * scale) {
@@ -39,10 +39,8 @@ struct PowerDisplay: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .opacity(0.6)
-                Spacer(minLength: 0)
-                newRideButton
             }
-            PowerChart(ride: model.ride, average: average, scale: scale)
+            PowerChart(trace: model.trace, average: average, scale: scale)
                 .opacity(rolling ? 1 : 0.45)
         }
         .monospacedDigit()
@@ -58,19 +56,13 @@ struct PowerDisplay: View {
         .onTapGesture { source.resume() }
     }
 
-    // The PM5's clock, average and rowing state are shown as is when it sends them;
-    // the app's own `Ride` figures are only a fallback (demo, non-Concept2 devices).
+    // Clock, average and stopped state are the PM5's own, shown as is.
 
-    var started: Bool { model.pm5.map { $0.elapsed > 0 } ?? model.ride.started }
-    var elapsed: TimeInterval { model.pm5?.elapsed ?? model.ride.movingTime }
-    var average: Double? {
-        guard let pm5 = model.pm5 else { return model.ride.averageWatts }
-        return pm5.elapsed > 0 ? pm5.averageWatts.map(Double.init) : nil
-    }
-    var stopped: Bool { model.pm5?.active.map(!) ?? model.ride.isPaused }
+    var started: Bool { (model.pm5.elapsed ?? 0) > 0 }
+    var average: Double? { started ? model.pm5.averageWatts.map(Double.init) : nil }
 
-    /// Ride clock is running: pedalling, and data is arriving.
-    var rolling: Bool { model.live && started && !stopped }
+    /// The PM5's clock is running and data is arriving.
+    var rolling: Bool { model.live && started && model.pm5.active != false }
 
     var rideStats: some View {
         let paused = started && !rolling
@@ -80,7 +72,7 @@ struct PowerDisplay: View {
                     Image(systemName: "pause.fill")
                         .font(.system(size: 11 * scale, weight: .bold))
                 }
-                Text(clock(elapsed))
+                Text(clock(model.pm5.elapsed ?? 0))
                     .font(.system(size: 20 * scale, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(paused ? pausedColor : .white)
@@ -114,26 +106,10 @@ struct PowerDisplay: View {
         return model.link.message
     }
 
-    var canReset: Bool { model.pm5 == nil && model.ride.started }
-
-    var newRideButton: some View {
-        Button { model.newRide() } label: {
-            Image(systemName: "arrow.counterclockwise")
-                .font(.system(size: 10 * scale, weight: .bold))
-                .padding(3 * scale)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("New ride")
-        // Only without PM5 data: otherwise a new workout on the monitor resets the app.
-        .opacity(canReset ? (hovering ? 0.9 : 0.3) : 0)
-        .disabled(!canReset)
-    }
-
     func detail(_ other: Double?) -> String {
         let label = mainIsAverage ? "now" : "3s"
         let o = other.map { "\(Int($0.rounded()))W" } ?? "--"
-        let c = model.cadence.map { "\(Int($0.rounded())) rpm" } ?? "-- rpm"
+        let c = model.pm5.cadence.map { "\(Int($0.rounded())) rpm" } ?? "-- rpm"
         return "\(label) \(o) · \(c)"
     }
 
@@ -145,19 +121,19 @@ struct PowerDisplay: View {
     }
 }
 
-/// The last two minutes of moving time, with the ride average as a dashed line.
+/// The last two minutes of the PM5's workout clock, with its average as a dashed line.
 struct PowerChart: View {
-    let ride: Ride
-    let average: Double?  // the PM5's when available, so the line matches the number shown
+    let trace: Trace
+    let average: Double?
     let scale: Double
     static let window: TimeInterval = 120
 
     var body: some View {
-        let end = max(ride.movingTime, Self.window)
+        let end = max(trace.points.last?.time ?? 0, Self.window)
         let start = end - Self.window
         // Keep one point before the window so the line enters from the left edge.
-        let from = ride.trace.lastIndex { $0.time < start } ?? 0
-        let points = Array(ride.trace[from...])
+        let from = trace.points.lastIndex { $0.time < start } ?? 0
+        let points = Array(trace.points[from...])
         let avg = average
         let top = max(Double(points.map(\.watts).max() ?? 0), avg ?? 0, 100) * 1.15
 

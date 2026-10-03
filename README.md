@@ -20,9 +20,16 @@ Allow Bluetooth access the first time it launches. To keep it around, drag `buil
 ## Use
 
 - Wake the PM5 (press any button) and PowerView connects automatically.
+- The window mirrors the PM5: the workout clock, average power and pause come straight from the monitor, so they always match its screen, even if you reconnect or restart the app mid-workout. Start a new workout on the PM5 to reset the window.
+- Below the big number: the 3-second average and cadence. The chart shows the last two minutes, with your workout average as a dashed line.
+- The dot shows the connection: green while data arrives, amber when connected but silent, pulsing blue while searching, grey when disconnected, red if Bluetooth is off or not allowed.
 - Drag the window anywhere; its position is remembered. It stays on top of full-screen apps.
-- Right-click for size, background opacity, showing the 3s average as the main number, disconnect, and quit.
-- To save the PM5's and your laptop's batteries, it disconnects after 5 minutes without pedalling and stops searching after 2 minutes. Click the window to reconnect.
+- Right-click (or Control-click) for:
+  - **Size** and **Background** darkness.
+  - **Opacity** of the whole window, for watching a movie behind it. It goes back to full while the mouse is over it.
+  - **Refresh**: update live, or every 2/5/10 seconds if the changing numbers are distracting.
+  - Showing the 3s average as the main number, connect/disconnect, and quit. The top of the menu shows which PM5 and data source are in use, and the last Bluetooth error if any.
+- To save the PM5's and your laptop's batteries, it disconnects after 5 minutes stopped, 2 minutes after you end a workout on the PM5 (so it can go to sleep), and stops searching after 2 minutes. A countdown shows in the last minute. Click the window to reconnect.
 
 ## Development
 
@@ -30,7 +37,13 @@ Allow Bluetooth access the first time it launches. To keep it around, drag `buil
 cd app
 swift test                                  # protocol decoder tests
 ./build.sh                                  # build/PowerView.app
-open build/PowerView.app --args --demo      # simulated data, no bike needed
+open build/PowerView.app --args --demo      # simulated PM5, no bike needed
+```
+
+To capture a Bluetooth trace (connection events, errors, every payload) for a bug report:
+
+```sh
+/usr/bin/log stream --predicate 'subsystem == "pm5-power"' --level debug --style compact > bluetooth.log
 ```
 
 On connect, the app uses the first of these the PM5 exposes:
@@ -38,6 +51,8 @@ On connect, the app uses the first of these the PM5 exposes:
 1. Bluetooth Cycling Power Service (`0x1818`)
 2. Fitness Machine Service, Indoor Bike Data (`0x1826`)
 3. Concept2's PM5 rowing service: power from *Additional Stroke Data* (`CE060036`), cadence from *Additional Status 1* (`CE060032`)
+
+It also always reads the PM5's workout clock, average power, rowing state and workout state from Concept2's *General Status* (`CE060031`) and *Additional Status 2* (`CE060033`).
 
 ## Status
 

@@ -19,14 +19,6 @@ func makeMenu(model: Model, source: PowerSource) -> NSMenu {
     }
     menu.addItem(.separator())
 
-    // With PM5 data the clock and average are the PM5's; a new workout on the monitor resets the app.
-    if model.pm5 == nil {
-        let newRide = NSMenuItem.action("New Ride") { model.newRide() }
-        newRide.isEnabled = model.ride.started
-        menu.addItem(newRide)
-        menu.addItem(.separator())
-    }
-
     let mainIsAverage = UserDefaults.standard.bool(forKey: "mainIsAverage")
     let toggle = NSMenuItem.action("Show 3s Average as Main Number") {
         UserDefaults.standard.set(!mainIsAverage, forKey: "mainIsAverage")

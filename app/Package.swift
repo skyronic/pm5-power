@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         // Pure decoding of PM5 / standard GATT payloads. No CoreBluetooth, so it's unit-testable.
         .target(name: "PowerProtocol"),
-        // Ride timer, auto-pause and average. Pure logic, also unit-tested.
+        // The chart's power trace. Pure logic, also unit-tested.
         .target(name: "RideCore"),
         .executableTarget(
             name: "PowerView",

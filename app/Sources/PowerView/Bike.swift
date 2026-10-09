@@ -29,7 +29,7 @@ final class Bike: NSObject, PowerSource, CBCentralManagerDelegate, CBPeripheralD
     static let rawSamplesLogged = 5
     /// Dogfooding: discover every service, read everything readable, subscribe to everything that
     /// notifies, and log every payload. Costs extra radio time while connected; turn off before publishing.
-    static let diagnostics = true
+    static let diagnostics = false
 
     let model: Model
     private var central: CBCentralManager!

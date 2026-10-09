@@ -6,7 +6,19 @@ macOS won't let you pair a PM5 in Bluetooth settings, but apps can talk to it di
 
 ## Install
 
-Requires macOS 14+ and Xcode (or the Xcode command line tools).
+Download `PowerView.dmg` from the [latest release](https://github.com/skyronic/pm5-power/releases/latest) (or from [pm5-power.netlify.app](https://pm5-power.netlify.app)), open it and drag PowerView into Applications. Requires macOS 14+.
+
+The app isn't notarized (no paid Apple developer account), so macOS blocks it the first time. Open it once, click **Done** on the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or from the Terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/PowerView.app
+```
+
+Allow Bluetooth access when it asks.
+
+### Build from source
+
+Requires Xcode (or the Xcode command line tools).
 
 ```sh
 git clone https://github.com/skyronic/pm5-power
@@ -14,8 +26,6 @@ cd pm5-power/app
 ./build.sh
 open build/PowerView.app
 ```
-
-Allow Bluetooth access the first time it launches. To keep it around, drag `build/PowerView.app` into Applications.
 
 ## Use
 
@@ -37,6 +47,7 @@ Allow Bluetooth access the first time it launches. To keep it around, drag `buil
 cd app
 swift test                                  # protocol decoder tests
 ./build.sh                                  # build/PowerView.app
+./package.sh                                # build/PowerView.dmg, for a release
 open build/PowerView.app --args --demo      # simulated PM5, no bike needed
 ```
 

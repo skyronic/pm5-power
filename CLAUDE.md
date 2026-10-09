@@ -1,6 +1,6 @@
 # pm5-power
 
-Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 monitor in a small always-on-top window, so riders can watch it over full-screen video. Shared with the Concept2 community; a mini website is planned.
+Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 monitor in a small always-on-top window, so riders can watch it over full-screen video. Shared with the Concept2 community.
 
 ## Layout
 
@@ -9,15 +9,17 @@ Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 mon
   - `Sources/PowerView/` — the app: `Bike.swift` (CoreBluetooth), `Model.swift` (live state + `PowerSource` protocol), `Demo.swift` (simulated PM5), `PowerDisplay.swift` (SwiftUI), `Menu.swift` (right-click menu, AppKit), `main.swift` (floating panel setup).
   - `Sources/RideCore/` — `Trace`: the chart's power trace, keyed by the PM5's workout clock. Pure logic, no UI.
   - `Tests/PowerProtocolTests/`, `Tests/RideCoreTests/` — Swift Testing tests.
-  - `Info.plist`, `build.sh` — the app bundle is assembled by hand from the SwiftPM binary.
-- `site/` — planned website (doesn't exist yet).
+  - `Info.plist`, `build.sh` — the app bundle is assembled by hand from the SwiftPM binary. `package.sh` wraps it in a DMG.
+- `site/` — static download page, deployed to https://pm5-power.netlify.app (`netlify.toml` publishes `site/`). Download links point at `releases/latest/download/PowerView.dmg`, so keep that asset name.
 
 ## Commands (run in `app/`)
 
 - `swift test` — decoder and ride tests.
-- `./build.sh` — universal release build → `build/PowerView.app` (ad-hoc signed).
+- `./build.sh` — universal release build → `build/PowerView.app` (ad-hoc signed; not notarized, so users go through Gatekeeper's Open Anyway once).
+- `./package.sh` — build plus `build/PowerView.dmg` for a GitHub release.
 - `open build/PowerView.app --args --demo` — run with simulated data; no bike needed.
 - `pkill -f PowerView.app/Contents/MacOS` — quit (there's no Dock icon).
+- Release: bump `CFBundleShortVersionString` in Info.plist, `./package.sh`, tag `vX.Y.Z`, `gh release create vX.Y.Z app/build/PowerView.dmg`. Site: `netlify deploy --prod --dir site --site pm5-power`.
 - `/usr/bin/log stream --predicate 'subsystem == "pm5-power"' --level debug --style compact > bluetooth.log` — capture Bluetooth events, errors, raw payloads and ride events (zsh has a `log` builtin, hence the full path). Start it before connecting; debug messages aren't kept otherwise.
 
 Don't use `swift run` for the real app: CoreBluetooth needs the `NSBluetoothAlwaysUsageDescription` from the bundle's Info.plist, and a bare binary gets killed by TCC.
@@ -41,5 +43,5 @@ The PM5 only advertises while its screen is awake. macOS Bluetooth settings can'
 - **Floating over full-screen video** depends on all of: `LSUIElement` in Info.plist (accessory app), a non-activating `NSPanel`, `collectionBehavior` with `.canJoinAllSpaces` + `.fullScreenAuxiliary`, and `hidesOnDeactivate = false`. Changing any of these can break it.
 - **Testing without hardware.** Only the maintainer has a bike. Verify UI with `--demo` and decoders with `swift test`; anything touching `Bike.swift` needs a real-ride check by the maintainer, so say so instead of claiming it works.
 - Untested so far: ANT+ (removed for now; see git history for the old Python CLI), RowErg/SkiErg, the FTMS and Cycling Power paths against a real PM5.
-- **Diagnostics are on while dogfooding.** `Bike.diagnostics` discovers every service, reads everything readable, subscribes to every notifying characteristic and logs every payload. Only the chosen source feeds the model. It costs radio time while connected, so set it to `false` before publishing.
+- **Diagnostics are off in releases.** Turn `Bike.diagnostics` on locally while dogfooding: it discovers every service, reads everything readable, subscribes to every notifying characteristic and logs every payload. Only the chosen source feeds the model. It costs radio time while connected, so it must be `false` in anything published.
 - Not affiliated with Concept2; don't use their logo or branding.

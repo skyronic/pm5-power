@@ -7,7 +7,7 @@
 <meta name="description" content="A free, open-source macOS app that shows live power from a Concept2 BikeErg's PM5 in a small window that floats over full-screen video.">
 <meta property="og:title" content="PowerView — live BikeErg watts on your Mac">
 <meta property="og:description" content="Watch your watts over a full-screen movie. Free and open source.">
-<meta property="og:image" content="https://pm5-power.netlify.app/ride.jpg">
+<meta property="og:image" content="https://powerview-app.netlify.app/ride.jpg">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111'/%3E%3Cpath d='M18 4 8 18h7l-2 10 11-15h-7z' fill='%2334d399'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -62,6 +62,10 @@
   figure { margin: 0; }
   figure img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line); }
   figcaption { color: var(--muted); font-size: 15px; margin-top: 10px; }
+  figure.shot { margin: 0 0 28px; text-align: center; }
+  figure.shot img { width: 330px; max-width: 100%; margin: 0 auto; border: 0; border-radius: 21px; }
+  .note.warn { border-color: #5c4a1a; background: #1f1a0e; margin-top: 24px; }
+  .note.warn strong { color: #fbbf24; }
   .note {
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
     padding: 18px 20px; margin: 0 0 24px;
@@ -154,6 +158,10 @@
   <p class="meta">You only do this once. After that PowerView opens like any other app.</p>
 
   <h2>Ride</h2>
+  <figure class="shot">
+    <img src="window.png" width="330" height="210" alt="The PowerView window: 129 W in large type, the workout clock 1:33 and average 192 W on the right, a 3-second average of 125 W and 84 rpm underneath, and a chart of the last two minutes of power.">
+    <figcaption>The window up close.</figcaption>
+  </figure>
   <ul class="plain">
     <li><strong>Wake the PM5</strong> by pressing any button. PowerView finds it and connects on its own. You don't pair it in Bluetooth settings; macOS can't, and doesn't need to.</li>
     <li><strong>Big number is your power.</strong> Under it: your 3-second average and cadence. On the right: the PM5's workout clock and average. The chart shows the last two minutes.</li>
@@ -161,6 +169,9 @@
     <li><strong>Right-click the window</strong> for size, background, see-through opacity, refresh rate and Quit. PowerView has no Dock icon, so this menu is where you find it.</li>
     <li><strong>It saves batteries.</strong> After a few minutes stopped, or once you end the workout, it disconnects so the PM5 can go to sleep. Click the window to reconnect.</li>
   </ul>
+  <div class="note warn">
+    <p><strong>Quit PowerView before you close your laptop.</strong> Sometimes it doesn't disconnect on its own after a workout ends. If it's still running, it can keep the PM5 connected and your workout active. Right-click the window and choose <span class="ui">Quit</span>.</p>
+  </div>
 
   <h2>Good to know</h2>
   <ul class="plain">

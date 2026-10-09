@@ -10,7 +10,7 @@ Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 mon
   - `Sources/RideCore/` — `Trace`: the chart's power trace, keyed by the PM5's workout clock. Pure logic, no UI.
   - `Tests/PowerProtocolTests/`, `Tests/RideCoreTests/` — Swift Testing tests.
   - `Info.plist`, `build.sh` — the app bundle is assembled by hand from the SwiftPM binary. `package.sh` wraps it in a DMG.
-- `site/` — static download page, deployed to https://pm5-power.netlify.app (`netlify.toml` publishes `site/`). Download links point at `releases/latest/download/PowerView.dmg`, so keep that asset name.
+- `site/` — static download page, deployed to https://powerview-app.netlify.app (`netlify.toml` publishes `site/`). Download links point at `releases/latest/download/PowerView.dmg`, so keep that asset name.
 
 ## Commands (run in `app/`)
 
@@ -19,7 +19,7 @@ Open-source macOS tool that shows live wattage from a Concept2 BikeErg's PM5 mon
 - `./package.sh` — build plus `build/PowerView.dmg` for a GitHub release.
 - `open build/PowerView.app --args --demo` — run with simulated data; no bike needed.
 - `pkill -f PowerView.app/Contents/MacOS` — quit (there's no Dock icon).
-- Release: bump `CFBundleShortVersionString` in Info.plist, `./package.sh`, tag `vX.Y.Z`, `gh release create vX.Y.Z app/build/PowerView.dmg`. Site: `netlify deploy --prod --no-build --dir site --site 70d390c3-95f9-4ccc-b693-66b80cd262f0` (pm5-power).
+- Release: bump `CFBundleShortVersionString` in Info.plist, `./package.sh`, tag `vX.Y.Z`, `gh release create vX.Y.Z app/build/PowerView.dmg`. Site: `netlify deploy --prod --no-build --dir site --site 70d390c3-95f9-4ccc-b693-66b80cd262f0` (powerview-app).
 - `/usr/bin/log stream --predicate 'subsystem == "pm5-power"' --level debug --style compact > bluetooth.log` — capture Bluetooth events, errors, raw payloads and ride events (zsh has a `log` builtin, hence the full path). Start it before connecting; debug messages aren't kept otherwise.
 
 Don't use `swift run` for the real app: CoreBluetooth needs the `NSBluetoothAlwaysUsageDescription` from the bundle's Info.plist, and a bare binary gets killed by TCC.

@@ -6,7 +6,7 @@ macOS won't let you pair a PM5 in Bluetooth settings, but apps can talk to it di
 
 ## Install
 
-Download `PowerView.dmg` from the [latest release](https://github.com/skyronic/pm5-power/releases/latest) (or from [pm5-power.netlify.app](https://pm5-power.netlify.app)), open it and drag PowerView into Applications. Requires macOS 14+.
+Download `PowerView.dmg` from the [latest release](https://github.com/skyronic/pm5-power/releases/latest) (or from [powerview-app.netlify.app](https://powerview-app.netlify.app)), open it and drag PowerView into Applications. Requires macOS 14+.
 
 The app isn't notarized (no paid Apple developer account), so macOS blocks it the first time. Open it once, click **Done** on the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or from the Terminal:
 
@@ -40,6 +40,7 @@ open build/PowerView.app
   - **Refresh**: update live, or every 2/5/10 seconds if the changing numbers are distracting.
   - Showing the 3s average as the main number, connect/disconnect, and quit. The top of the menu shows which PM5 and data source are in use, and the last Bluetooth error if any.
 - To save the PM5's and your laptop's batteries, it disconnects after 5 minutes stopped, 2 minutes after you end a workout on the PM5 (so it can go to sleep), and stops searching after 2 minutes. A countdown shows in the last minute. Click the window to reconnect.
+- Quit PowerView before closing your laptop. Sometimes it doesn't disconnect on its own after a workout ends, and if it's still running it can keep the PM5 connected and your workout active.
 
 ## Development
 

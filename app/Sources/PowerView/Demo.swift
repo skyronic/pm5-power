@@ -1,5 +1,6 @@
 import Foundation
 import PowerProtocol
+import RideCore
 
 /// Simulated PM5 for development and screenshots: `open PowerView.app --args --demo`.
 /// Sends the same readings and status packets as the bike, so the display works exactly as it does live.
@@ -31,7 +32,10 @@ final class Demo: PowerSource {
         t += 0.5
         // Stop pedalling for 10 s every 90 s so the pause can be seen.
         let pedalling = t.truncatingRemainder(dividingBy: 90) < 80
-        let watts = pedalling ? Int(180 + 60 * sin(t / 20) + Double.random(in: -15...15)) : 0
+        // Rides the interval targets, missing them now and then; free riding once it's done.
+        let base = Intervals.workout.phase(at: elapsed).map { Double($0.target) + ($0.isWork ? 15 : 5) }
+            ?? 180 + 60 * sin(t / 20)
+        let watts = pedalling ? Int(base + Double.random(in: -20...20)) : 0
         if pedalling {
             elapsed += 0.5
             energy += Double(watts) * 0.5

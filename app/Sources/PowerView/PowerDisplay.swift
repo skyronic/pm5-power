@@ -3,6 +3,9 @@ import RideCore
 import SwiftUI
 
 private let pausedColor = Color(red: 1, green: 0.78, blue: 0.35)
+private let aboveColor = Color(red: 0.2, green: 0.75, blue: 0.35)
+private let belowColor = Color(red: 0.9, green: 0.25, blue: 0.2)
+private let targetColor = Color(red: 0.45, green: 0.9, blue: 0.55)
 
 struct PowerDisplay: View {
     @ObservedObject var model: Model
@@ -14,7 +17,8 @@ struct PowerDisplay: View {
     @AppStorage(Model.refreshKey) var refresh = 0.0
     @State private var hovering = false
 
-    static let size = CGSize(width: 220, height: 140)
+    static let size = CGSize(width: 250, height: 200)
+    let intervals = Intervals.workout
 
     var body: some View {
         let live = model.live
@@ -40,7 +44,9 @@ struct PowerDisplay: View {
                     .minimumScaleFactor(0.7)
                     .opacity(0.6)
             }
-            PowerChart(trace: model.trace, average: average, scale: scale)
+            intervalRow
+                .padding(.top, 2 * scale)
+            PowerChart(trace: model.trace, average: average, intervals: intervals, scale: scale)
                 .opacity(rolling ? 1 : 0.45)
         }
         .monospacedDigit()
@@ -83,6 +89,38 @@ struct PowerDisplay: View {
         }
     }
 
+    /// The current interval and whether the 3s average is on target, from the PM5's clock.
+    @ViewBuilder var intervalRow: some View {
+        let elapsed = model.pm5.elapsed ?? 0
+        let font = Font.system(size: 13 * scale, weight: .bold, design: .rounded)
+        if !started {
+            Text("Intervals · \(intervals.rounds) × \(Int(intervals.work))s / \(Int(intervals.rest))s")
+                .font(font).opacity(0.5)
+        } else if let phase = intervals.phase(at: elapsed) {
+            let above = model.live ? model.avg3.map { $0 >= Double(phase.target) } : nil
+            HStack(spacing: 6 * scale) {
+                Text("\(phase.isWork ? "WORK" : "REST") \(phase.round)/\(intervals.rounds)")
+                    .foregroundStyle(phase.isWork ? .white : .white.opacity(0.6))
+                Text(clock(phase.remaining(at: elapsed).rounded(.up)))
+                    .opacity(0.8)
+                Spacer(minLength: 0)
+                HStack(spacing: 3 * scale) {
+                    Image(systemName: above == false ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
+                        .font(.system(size: 8 * scale))
+                    Text("\(above.map { $0 ? "ABOVE " : "BELOW " } ?? "")\(phase.target) W")
+                }
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 7 * scale)
+                .padding(.vertical, 2 * scale)
+                .background(Capsule().fill(above.map { $0 ? aboveColor : belowColor } ?? .white.opacity(0.2)))
+            }
+            .font(font)
+        } else {
+            Text("Intervals done").font(font).opacity(0.5)
+        }
+    }
+
     /// Green: data arriving. Amber: connected but silent. Pulsing blue: looking for the bike.
     /// Grey: disconnected on purpose. Red: Bluetooth itself is off or not allowed.
     var statusDot: some View {
@@ -121,29 +159,46 @@ struct PowerDisplay: View {
     }
 }
 
-/// The last two minutes of the PM5's workout clock, with its average as a dashed line.
+/// Two minutes of the PM5's workout clock (the last one ridden, the next one ahead), with its
+/// average as a dashed line, work intervals as bands and the interval target as a stepped line.
 struct PowerChart: View {
     let trace: Trace
     let average: Double?
+    let intervals: Intervals
     let scale: Double
     static let window: TimeInterval = 120
 
     var body: some View {
-        let end = max(trace.points.last?.time ?? 0, Self.window)
+        // The head moves right until mid-chart, then the chart scrolls under it, so the next
+        // minute of intervals is always visible ahead.
+        let end = max((trace.points.last?.time ?? 0) + Self.window / 2, Self.window)
         let start = end - Self.window
         // Keep one point before the window so the line enters from the left edge.
         let from = trace.points.lastIndex { $0.time < start } ?? 0
         let points = Array(trace.points[from...])
         let avg = average
-        let top = max(Double(points.map(\.watts).max() ?? 0), avg ?? 0, 100) * 1.15
+        let phases = intervals.phases(from: start, to: end)
+        let top = max(Double(points.map(\.watts).max() ?? 0), avg ?? 0, Double(intervals.workWatts)) * 1.15
 
         Chart {
+            ForEach(phases.filter(\.isWork), id: \.start) { p in
+                RectangleMark(xStart: .value("Start", p.start), xEnd: .value("End", p.end))
+                    .foregroundStyle(.white.opacity(0.08))
+            }
+            // Each phase is its own flat segment, so the target steps at interval boundaries.
+            ForEach(phases, id: \.start) { p in
+                ForEach([p.start, p.end], id: \.self) { t in
+                    LineMark(x: .value("Time", t), y: .value("Target", p.target), series: .value("Phase", p.start))
+                        .foregroundStyle(targetColor.opacity(0.8))
+                        .lineStyle(StrokeStyle(lineWidth: 1.5 * scale))
+                }
+            }
             ForEach(Array(points.enumerated()), id: \.offset) { _, p in
                 AreaMark(x: .value("Time", p.time), y: .value("Watts", p.watts))
                     .foregroundStyle(.linearGradient(colors: [.white.opacity(0.35), .white.opacity(0.02)],
                                                      startPoint: .top, endPoint: .bottom))
                     .interpolationMethod(.monotone)
-                LineMark(x: .value("Time", p.time), y: .value("Watts", p.watts))
+                LineMark(x: .value("Time", p.time), y: .value("Watts", p.watts), series: .value("Phase", -1.0))
                     .foregroundStyle(.white.opacity(0.9))
                     .lineStyle(StrokeStyle(lineWidth: 1.5 * scale, lineJoin: .round))
                     .interpolationMethod(.monotone)

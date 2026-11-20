@@ -1,9 +1,10 @@
-import Foundation
+import AppKit
 import os
 import PowerProtocol
 import RideCore
 
 private let log = Logger(subsystem: "pm5-power", category: "ride")
+private let intervalLog = Logger(subsystem: "pm5-power", category: "intervals")
 
 /// Live state shown in the window. All mutation happens on the main thread.
 ///
@@ -17,6 +18,8 @@ final class Model: ObservableObject {
     private(set) var pm5 = PM5State()
     private(set) var avg3: Double?
     private(set) var trace = Trace()
+    private var tally = IntervalTally(.workout)
+    private var lastClock: Double?  // for the countdown clicks
     @Published var live = false  // power arrived in the last 3s
     @Published var link = Link.starting
     @Published var lastError: String?  // most recent Bluetooth error, shown in the menu
@@ -46,6 +49,7 @@ final class Model: ObservableObject {
             samples.removeAll { now.timeIntervalSince($0.0) > 3 }
             avg3 = Double(samples.map(\.1).reduce(0, +)) / Double(samples.count)
             if let t = pm5.elapsed { trace.add(watts: watts, at: t) }
+            if pm5.active != false { tally.add(watts: watts, cadence: pm5.cadence) }
         }
         lastUpdate = now
         changed()
@@ -57,15 +61,38 @@ final class Model: ObservableObject {
         if restarted {
             log.info("PM5 workout restarted (\(before.elapsed ?? 0, format: .fixed(precision: 2))s → \(s.elapsed, format: .fixed(precision: 2))s)")
             trace = Trace()
+            tally = IntervalTally(.workout)
+            lastClock = nil
+        }
+        if let t = pm5.elapsed, t > 0, pm5.inWorkout != false {
+            if let change = tally.advance(to: t) { intervalChanged(change) }
+            if let previous = lastClock, tally.intervals.countdown(from: previous, to: t) != nil {
+                NSSound(named: "Tink")?.play()
+            }
+            lastClock = t
         }
         if pm5.active == true { lastPedal = Date() }
         if before.inWorkout != false, pm5.inWorkout == false {
             log.info("PM5 workout ended: \(self.summary, privacy: .public)")
             workoutEnded = Date()
+            if tally.phase != nil {
+                if let s = tally.finish(at: pm5.elapsed ?? 0) { intervalLog.notice("\(s, privacy: .public) (ended early)") }
+                intervalLog.notice("\(self.tally.report, privacy: .public)")
+            }
         }
         let toggled = before.active.map { $0 != pm5.active } ?? false
         if toggled { log.info("PM5 \(self.pm5.active == true ? "active" : "stopped", privacy: .public): \(self.summary, privacy: .public)") }
         if pm5 != before { changed(immediately: restarted || toggled) }  // frozen while stopped, so no redraws then
+    }
+
+    /// Logs the interval that just finished and, on a boundary, plays a sound for the next one.
+    /// Notice level, so `log show` can find it after a ride without a stream running.
+    private func intervalChanged(_ change: IntervalTally.Change) {
+        if let s = change.finished { intervalLog.notice("\(s, privacy: .public)") }
+        if change.entered == nil { intervalLog.notice("\(self.tally.report, privacy: .public)") }
+        guard change.crossed else { return }  // joined mid-interval: no sound
+        let sound = change.entered.map { $0.isWork ? "Glass" : "Pop" } ?? "Hero"  // work, rest, done
+        NSSound(named: sound)?.play()
     }
 
     /// Asks the view to redraw for new readings, at most once per the Refresh setting.
